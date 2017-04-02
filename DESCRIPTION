@@ -1,0 +1,19 @@
+Package: stfilter
+Type: Package
+Title: stock filter (Title Case)
+Version: 0.1.0
+Author: Benjamin Chen
+Maintainer: Benjamin Chen <benjamin0901@gmail.com>
+Description: Just filter stock
+License: GLP (>=3)
+Imports:
+    dplyr,
+    googlesheets,
+    httr,
+    XML,
+    quantmod,
+    data.table,
+    xlsx,
+    readxl
+LazyData: None
+RoxygenNote: 6.0.1
