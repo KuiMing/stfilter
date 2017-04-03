@@ -1,9 +1,3 @@
-library(httr)
-library(XML)
-library(dplyr)
-library(quantmod)
-library(data.table)
-library(quantmod)
 
 #'@title Get daily record of stock from TWSE
 #'
