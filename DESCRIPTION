@@ -15,5 +15,14 @@ Imports:
     data.table,
     xlsx,
     readxl
+Depends:
+    dplyr,
+    googlesheets,
+    httr,
+    XML,
+    quantmod,
+    data.table,
+    xlsx,
+    readxl
 LazyData: None
 RoxygenNote: 6.0.1

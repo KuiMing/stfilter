@@ -247,14 +247,17 @@ get_start_date <- function(stock){
   return(start)
 }
 
+
 f2w <- function(stocklist, today){
   stock <- stocklist
   wanted <- data.frame(code=stock$code)
+  wanted$start <- NULL
 
-  start <- sapply(stock$code, get_start_date) %>%
-    as.Date()
+  for (i in 1:length(stock$code)){
+    x <- get_start_date(stock$code[i]) %>% as.character()
+    wanted$start[i] <- x
+  }
 
-  wanted$start <- start
   wanted$end <- gsub('/','-',today)
   wanted$close <- ""
 
@@ -322,6 +325,17 @@ new_stock <- function(stock,url){
 
 }
 
+wangoo_agentstat <- function(stock,start,end){
+  url <- paste0('http://www.wantgoo.com/Stock/aStock/AgentStat_Ajax?',
+                'StockNo=',stock,
+                '&Types=3.5&StartDate=',start,
+                '&EndDate=',end,'&Rows=35')
+  res <- GET(url)
+  content(res,'raw',encoding = 'utf8') %>%
+    writeBin('tmp.txt')
+}
+
+
 #'@title Observe recent trend of chip
 #'
 #'@description Get trading records from wangoo and put them into google spread sheet.
@@ -336,7 +350,6 @@ new_stock <- function(stock,url){
 #'ob_recent(url,'fil_recent')
 #'
 #'@seealso \link{daily_routine}
-
 
 ob_recent <- function(url,folder='fil_recent'){
   #url='https://docs.google.com/spreadsheets/d/1z_2E7G5aVgzoFmgK9tPWM2PN8fppLgd-lkpQU08VLKM/edit#gid=0'
@@ -366,10 +379,9 @@ ob_recent <- function(url,folder='fil_recent'){
     ind <- which(old$code %in% newstock & is.na(old$close))
 
     write.csv(old[ind,],file = 'newstock.csv',fileEncoding = 'utf8',row.names = F)
-
-    command <- paste('/Users/benjamin/anaconda/bin/python',
-                     '/Users/benjamin/Github/stock_conspiracy/move_files.py',
-                     folder)
+    py <- paste(system.file(package="stfilter"),
+                "move_files.py", sep="/")
+    command <- paste('python', py, folder)
 
     system(command,ignore.stderr = T)
 
@@ -579,9 +591,9 @@ daily_routine <- function(url,folder='fil_daily'){
     old <- gs_read(List,ws='daily')
     ind <- which(old$code %in% recent$code & is.na(old$done))
     write.csv(old[ind,],file = 'newstock.csv',fileEncoding = 'utf8',row.names = F)
-    command=paste('/Users/benjamin/anaconda/bin/python',
-                  '/Users/benjamin/Github/stock_conspiracy/move_files.py',
-                  folder)
+    py <- paste(system.file(package="stfilter"),
+                "move_files.py", sep="/")
+    command <- paste('python', py, folder)
     system(command,ignore.stderr = T)
 
     new_url <- read.csv('newstock.csv',stringsAsFactors = F,fileEncoding = 'utf8')
