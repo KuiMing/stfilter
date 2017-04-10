@@ -111,14 +111,17 @@ MI_INDEX <- function(date=format(Sys.time(),"%Y%m%d")){
 
   tables <- htmlParse(tables) %>%
     readHTMLTable(stringsAsFactors = F, which = 2) %>%
-    .[,c(1:2,5:8)]
+    .[,c(1:2,5:10)]
 
   colnames(tables) <- c("code","volume",'open',
-                        'high','low','close')
+                        'high','low','close','Dir','change')
 
-  for (i in 2:6){
+
+  for (i in c(2:6,8)){
     tables[,i] <- as.numeric(gsub(',','',tables[,i]))
   }
+  tables$change[tables$Dir=='－'] <- tables$change[tables$Dir=='－']*(-1)
+  tables <- tables[,c(1:6,8)]
   return(tables)
 }
 
@@ -144,12 +147,15 @@ otc_daily <- function(date=format(Sys.time(),"%Y/%m/%d")){
   date=paste0(as.numeric(substr(date,1,4))-1911,substr(date,5,10))
   url <- paste0("http://www.tpex.org.tw/web/stock/aftertrading/daily_close_quotes/stk_quote_download.php?l=zh-tw&d=",
                 date,"&s=0,asc,0")
-  otc <- fread(url,header = T,skip = 1,stringsAsFactors = F,data.table = F,
-               select = c(1,3,5:7,9),col.names = c('code','close','open','high','low','volume'))
-  for (i in 2:6){
-    otc[,i] <- as.numeric(gsub(',','',otc[,i]))
+  otc <- fread(url,header = T,skip = 1,stringsAsFactors = F,data.table = F,encoding = 'UTF-8',
+               select = c(1,3:7,9),col.names = c('code','close','change','open','high','low','volume'))
+
+  for (i in 2:7){
+    otc[,i] <- gsub(',','',otc[,i]) %>%
+      gsub('\xb0\xa3\xc5v ','',.) %>%
+      as.numeric()
   }
-  otc <- otc[,c('code','volume','open','high','low','close')]
+  otc <- otc[,c('code','volume','open','high','low','close','change')]
   return(otc)
 }
 
@@ -183,9 +189,10 @@ revenue <- function(year,mon,type){
                 type,'/t21sc03_',year,'_',mon,'_0.html')
   tab <- htmlParse(url,encoding = 'big5') %>%
     readHTMLTable(stringsAsFactors = F, which = 2, skip.rows = 1:4)
-  tab <- tab[!is.na(tab[,11]), c(1,6)] %>%
-    mutate(V6=as.numeric(gsub(',','',V6)))
+  tab <- tab[!is.na(tab[,11]), c(1,3)] %>%
+    mutate(V3=as.numeric(gsub(',','',V3)))
   colnames(tab) <- c('code','rev')
+  tab$mon <- paste0(year,mon)
   return(tab)
 }
 
@@ -199,8 +206,14 @@ concen <- function(stock){
                   stringsAsFactors = F) %>% .[[1]]
   colnames(concen)[1] <- "Duration"
   concen$Duration[1] <- paste(concen$Duration[2],concen$Duration[1],sep="-")
-  concen[1,2:5]=concen[1,2:5]-concen[3,2:5]
+  linear <- data.frame(concen[1:3,2:5],v1=3:1)
   concen=concen[1,]
+  concen$大戶籌碼 <- lm(大戶籌碼~v1,linear)$coefficients[2]
+  concen$籌碼集中度 <- lm(籌碼集中度~v1,linear)$coefficients[2]
+  concen$外資籌碼 <- lm(外資籌碼~v1,linear)$coefficients[2]
+  concen$董監持股 <- lm(董監持股~v1,linear)$coefficients[2]
+
+  #concen[1,2:5]=concen[1,2:5]-concen[3,2:5]
   return(concen)
 }
 
@@ -394,13 +407,20 @@ main_everyday <- function(recent,date,url){
   list_url <- url
   stock <- recent$code
   newurl <- recent$url
-  mark <- gs_url(newurl) %>%
+  newsheet <- gs_url(newurl)
+  mark <- newsheet %>%
     gs_read(ws=2) %>%
     filter(!is.na(marked))
   if (dim(mark)[1]>0){
-    return()
+    buy <- gs_read(newsheet,ws=1)
+    buy <- sum(buy[,7])
+    sell <- gs_read(newsheet,ws=2) %>%
+      .[,7] %>% sum()
+    if (buy+sell<0){
+      return()
+    }
   }
-  mark <- gs_url(newurl) %>%
+  mark <- newsheet %>%
     gs_read(ws=1) %>%
     filter(!is.na(marked))
   if (dim(mark)[1]==0){
