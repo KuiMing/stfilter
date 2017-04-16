@@ -120,7 +120,9 @@ MI_INDEX <- function(date=format(Sys.time(),"%Y%m%d")){
   for (i in c(2:6,8)){
     tables[,i] <- as.numeric(gsub(',','',tables[,i]))
   }
-  tables$change[tables$Dir=='－'] <- tables$change[tables$Dir=='－']*(-1)
+  tables$Dir=factor(tables$Dir) %>% as.numeric()
+  tables$change[tables$Dir==3] <-  -1*tables$change[tables$Dir==3]
+
   tables <- tables[,c(1:6,8)]
   return(tables)
 }
@@ -206,12 +208,16 @@ concen <- function(stock){
                   stringsAsFactors = F) %>% .[[1]]
   colnames(concen)[1] <- "Duration"
   concen$Duration[1] <- paste(concen$Duration[2],concen$Duration[1],sep="-")
+  colnames(concen)[2:5]=c("A","B","C","D")
   linear <- data.frame(concen[1:3,2:5],v1=3:1)
+  colnames(linear)[1:4]=c("A","B","C","D")
   concen=concen[1,]
-  concen$大戶籌碼 <- lm(大戶籌碼~v1,linear)$coefficients[2]
-  concen$籌碼集中度 <- lm(籌碼集中度~v1,linear)$coefficients[2]
-  concen$外資籌碼 <- lm(外資籌碼~v1,linear)$coefficients[2]
-  concen$董監持股 <- lm(董監持股~v1,linear)$coefficients[2]
+
+  concen$A <- lm(A~v1,linear)$coefficients[2]
+  concen$B <- lm(B~v1,linear)$coefficients[2]
+  concen$C <- lm(C~v1,linear)$coefficients[2]
+  concen$D <- lm(D~v1,linear)$coefficients[2]
+  colnames(concen)[2:5] <- c("籌碼集中度","外資籌碼","大戶籌碼","董監持股")
 
   #concen[1,2:5]=concen[1,2:5]-concen[3,2:5]
   return(concen)
@@ -284,7 +290,7 @@ xls_ETL <- function(files){
   colnames(x) <- coln
   x$marked=""
   x$comment=""
-  ratio <- x$買賣超[1:4]/x$買賣超[2:5]
+  ratio <- x$買賣超[1:9]/x$買賣超[2:10]
   if (length(which(ratio>=1.5))>0){
     x$marked[1:max(which(ratio>=1.5))]=1:max(which(ratio>=1.5))
   }
@@ -447,7 +453,10 @@ main_everyday <- function(recent,date,url){
 
   #url='https://docs.google.com/spreadsheets/d/1z_2E7G5aVgzoFmgK9tPWM2PN8fppLgd-lkpQU08VLKM/edit#gid=0'
   List=gs_url(list_url, lookup = NULL, visibility = NULL, verbose = TRUE)
-  List=gs_add_row(List,ws='daily',input=c(stock,newsheet$browser_url,titlename))
+  k=k20(stock)
+  List=gs_add_row(List,ws='daily',
+                  input=c(stock,newsheet$browser_url,titlename,
+                          NA,NA,k))
 
 
   coln <- c("券商名稱", "均價", "買價",
@@ -508,6 +517,9 @@ main_daily <- function(daily,date){
   ws <- gs_ws_ls(sheet)
   for (i in 1:length(ws)){
     oldsheet = gs_read(sheet, ws=i)
+    if (i%%5==0){
+      Sys.sleep(sample(60,1))
+    }
     if (tail(oldsheet$date,1)==date){
       if (i==length(ws)){
         return()
@@ -620,4 +632,45 @@ daily_routine <- function(url,folder='fil_daily'){
   }
 }
 
+OTC_csv <- function(stock="5460",year_in,month_in){
+  url=paste0('http://www.tpex.org.tw/web/stock/aftertrading/daily_trading_info/st43_download.php?l=en-us&d=',
+             year_in,'/',month_in,'&stkno=',stock,'&s=0,asc,0')
+  x=read.csv(url,header = F,stringsAsFactors = F)
+  x=x[-dim(x)[1],]
+  x=x[-1:-5,c(1:2,4:7)]
+  colnames(x)=c('date','Volume','Open','High','Low','Close')
+  x[,2:6] <- sapply(2:6, function(i){
+    as.numeric(unlist(gsub(',','',as.character(x[,i]))))
+  })
+  x$date=paste(year_in,month_in,substr(x$date,8,9),sep='-')
+  x$Volume=x$Volume*1000
+  tables <- xts(x[,2:6], as.Date(x[,1])) %>%
+    as.zoo()
+  return(tables)
+}
 
+k20 <- function(stock){
+  x=stock
+  ym=c(som(som(som(Sys.Date())-1)-1),
+       som(som(Sys.Date())-1),
+       som(Sys.Date()))
+  year <- sapply(ym, function(x){
+    format(x,"%Y")
+  })
+  mons <- sapply(ym, function(x){
+    format(x,"%m")
+  })
+  test=try(TWSE_csv(x,year[3],mons[3]),T)
+  if (class(test)=="try-error"){
+    y <- rbind(OTC_csv(x,year[1],mons[1]),
+               OTC_csv(x,year[2],mons[2]),
+               OTC_csv(x,year[3],mons[3]))
+  }else {
+    y <- rbind(TWSE_csv(x,year[1],mons[1]),
+               TWSE_csv(x,year[2],mons[2]),
+               TWSE_csv(x,year[3],mons[3]))
+  }
+
+  k=as.numeric(tail(Cl(y),1)-tail(SMA(Cl(y),20),1))>0
+  return(k)
+}
