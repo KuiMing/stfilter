@@ -13,40 +13,42 @@
 #'
 
 
-TWSE_csv <- function(stock="1215",year_in,month_in){
-  url <- "http://www.twse.com.tw/en/trading/exchange/STOCK_DAY/STOCK_DAY.php"
-  year <- as.numeric(year_in)
-  month <- as.numeric(month_in)
-  query_str <- paste0('myear=', year, '&mmon=', month,
-                      '&STK_NO=', stock, '&login_btn=+Query+')
-  res <- POST(url,
-              add_headers(
-                Connection= "keep-alive",
-                `Content-Length`= 47,
-                `Cache-Control`= "max-age=0",
-                Accept= "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                Origin= "http://www.twse.com.tw",
-                `Upgrade-Insecure-Requests`= 1,
-                `User-Agent`= "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36",
-                `Content-Type`= "application/x-www-form-urlencoded",
-                `Accept-Encoding`= "gzip, deflate",
-                `Accept-Language`= "zh-TW,zh;q=0.8,en-US;q=0.6,en;q=0.4,zh-CN;q=0.2"),
-              body = query_str)
+TWSE_csv <- function(stock="1215",year_in, month_in){
+  #   url <- "http://www.twse.com.tw/en/trading/exchange/STOCK_DAY/STOCK_DAY.php"
+  #   year <- as.numeric(year_in)
+  #   month <- as.numeric(month_in)
+  #   query_str <- paste0('myear=', year, '&mmon=', month,
+  #                       '&STK_NO=', stock, '&login_btn=+Query+')
+  #   res <- POST(url,
+  #               add_headers(
+  #                 Connection= "keep-alive",
+  #                 `Content-Length`= 47,
+  #                 `Cache-Control`= "max-age=0",
+  #                 Accept= "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+  #                 Origin= "http://www.twse.com.tw",
+  #                 `Upgrade-Insecure-Requests`= 1,
+  #                 `User-Agent`= "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36",
+  #                 `Content-Type`= "application/x-www-form-urlencoded",
+  #                 `Accept-Encoding`= "gzip, deflate",
+  #                 `Accept-Language`= "zh-TW,zh;q=0.8,en-US;q=0.6,en;q=0.4,zh-CN;q=0.2"),
+  #               body = query_str)
   x=year_in
   i=month_in
+  Date=paste0(x,i,"01")
 
-  url <- paste0("http://www.twse.com.tw/en/trading/exchange/STOCK_DAY/STOCK_DAY_print.php?genpage=genpage/Report",
-                x, i, "/", x, i, "_F3_1_8_", stock, ".php&type=csv")
+  url <- paste0("http://www.twse.com.tw/en/exchangeReport/STOCK_DAY?response=csv&date=",
+                Date, "&stockNo=", stock)
   # download.file(url,destfile = "tmp.csv")
   tables <- read.csv(url,header = F)
-  tables <- tables[-1:-2,c(1:2,4:8)]
-  tables[,2:7] <- sapply(2:7, function(i){
+  tables <- tables[-1:-2,c(1:2,4:7)]
+  tables[,2:6] <- sapply(2:6, function(i){
     as.numeric(unlist(gsub(',','',as.character(tables[,i]))))
   })
   tables <- mutate(tables,V1=gsub('/','-',V1)) %>%
-    `colnames<-`(c("date","Volume","Open","High","Low","Close",'diff'))
+    `colnames<-`(c("date","Volume","Open","High","Low","Close")) %>%
+    filter(!is.na(Open))
 
-  tables <- xts(tables[,2:7], as.Date(tables[,1])) %>%
+  tables <- xts(tables[,2:6], as.Date(tables[,1])) %>%
     as.zoo()
   return(tables)
 }
@@ -266,11 +268,11 @@ f2w <- function(stocklist, today){
   wanted <- data.frame(code=stock$code)
   wanted$start <- NULL
 
-  for (i in 1:length(stock$code)){
-    x <- get_start_date(stock$code[i]) %>% as.character()
-    wanted$start[i] <- x
-  }
-
+#   for (i in 1:length(stock$code)){
+#     x <- get_start_date(stock$code[i]) %>% as.character()
+#     wanted$start[i] <- x
+#   }
+  wanted$start <- '2016-01-13'
   wanted$end <- gsub('/','-',today)
   wanted$close <- ""
 
@@ -454,8 +456,9 @@ main_everyday <- function(recent,date,url){
   #url='https://docs.google.com/spreadsheets/d/1z_2E7G5aVgzoFmgK9tPWM2PN8fppLgd-lkpQU08VLKM/edit#gid=0'
   List=gs_url(list_url, lookup = NULL, visibility = NULL, verbose = TRUE)
   k=k20(stock)
+  link <- paste0('http://www.wantgoo.com/stock/astock/techchart?StockNo=',stock)
   List=gs_add_row(List,ws='daily',
-                  input=c(stock,newsheet$browser_url,titlename,
+                  input=c(link,stock,newsheet$browser_url,titlename,
                           NA,NA,k))
 
 
@@ -518,7 +521,7 @@ main_daily <- function(daily,date){
   for (i in 1:length(ws)){
     oldsheet = gs_read(sheet, ws=i)
     if (i%%5==0){
-      Sys.sleep(sample(60,1))
+      Sys.sleep(sample(60:90,1))
     }
     if (tail(oldsheet$date,1)==date){
       if (i==length(ws)){
@@ -590,7 +593,7 @@ daily_routine <- function(url,folder='fil_daily'){
       close_stock$title[i] <- titles
     }
     close_stock$done <- 'done'
-    daily[!is.na(daily$close),] <- close_stock
+    daily[daily$code %in% close_stock$code,] <- close_stock
     List <- gs_edit_cells(List,ws='daily', input = daily)
   }
 
@@ -673,4 +676,66 @@ k20 <- function(stock){
 
   k=as.numeric(tail(Cl(y),1)-tail(SMA(Cl(y),20),1))>0
   return(k)
+}
+
+stop_daily <- function(url){
+  gs_auth()
+  List=gs_url(url)
+  daily=gs_read(List,ws='daily')
+  code=daily$code[is.na(daily$done)]
+  k=sapply(code,k20)
+  daily$ma20[is.na(daily$done)]=k
+  daily$close[!daily$ma20 & is.na(daily$close)]=as.character(Sys.Date())
+  gs_edit_cells(List,ws='daily',input=daily)
+}
+
+wantgoo_foreign <- function(stock){
+  url=paste0('http://www.wantgoo.com/stock/astock/three?StockNo=',
+             stock,'&dtSpan=40')
+  foreign <- GET(url) %>%
+    content('text',encoding = 'utf8') %>%
+    htmlParse(encoding = 'utf8') %>%
+    readHTMLTable(stringsAsFactors = F,which = 1) %>%
+    .[41,2] %>% gsub(',','',.) %>% as.numeric()
+  return(foreign)
+}
+
+get_price <- function(stock){
+  x=stock
+  date=long_date(1) %>% as.Date()
+  ym=c(som(som(som(som(date)-1)-1)-1),
+       som(som(som(date)-1)-1),
+       som(som(date)-1),
+       som(date))
+  year <- sapply(ym, function(x){
+    format(x,"%Y")
+  })
+  mons <- sapply(ym, function(x){
+    format(x,"%m")
+  })
+  test=try(TWSE_csv(x,year[4],mons[4]),T)
+  if (class(test)=="try-error"){
+    y <- rbind(OTC_csv(x,year[1],mons[1]),
+               OTC_csv(x,year[2],mons[2]),
+               OTC_csv(x,year[3],mons[3]),
+               OTC_csv(x,year[4],mons[4]))
+  }else {
+    y <- rbind(TWSE_csv(x,year[1],mons[1]),
+               TWSE_csv(x,year[2],mons[2]),
+               TWSE_csv(x,year[3],mons[3]),
+               TWSE_csv(x,year[3],mons[4]))
+  }
+  y=as.xts(y)
+  return(y)
+}
+
+get_name <- function(stock){
+  url=paste0('http://www.wantgoo.com/stock/',stock,
+             '?searchType=stocks')
+  res=GET(url)
+  restr <- content(res,'text',encoding = 'utf8')
+  res <- htmlParse(restr, encoding = 'utf8')
+  titlename=xpathSApply(res,"//h3[@class='idx-name']",xmlValue) %>%
+    gsub('[0-9]','',.)
+  return(titlename)
 }
