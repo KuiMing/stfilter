@@ -84,8 +84,10 @@ long_date <- function(n=6){
 }
 
 fund=function(date=format(Sys.time(),"%Y%m%d")){
+  date=gsub('/','',date)
 
-  url <- paste0("http://www.twse.com.tw/fund/T86?response=csv&date=",date,"&selectType=ALLBUT0999")
+  url <- paste0("http://www.twse.com.tw/fund/T86?response=csv&date=",
+                date,"&selectType=ALLBUT0999")
   tables <- read.csv(url,header = F,fileEncoding = 'big5')
 
   tables=tables[-(1:2),c(1,5,8)]
@@ -107,7 +109,7 @@ MI_INDEX <- function(date=format(Sys.time(),"%Y%m%d")){
 #                    `Content-Type`= "application/x-www-form-urlencoded"
 #                  ),
 #                  body = paste0("download=&qdate=",date,"&selectType=ALLBUT0999"))
-
+  date=gsub('/','',date)
   url=paste0('http://www.twse.com.tw/en/exchangeReport/MI_INDEX?response=html&date=',
              date,'&type=ALLBUT0999')
   res=GET(url)
@@ -157,11 +159,12 @@ otc_daily <- function(date=format(Sys.time(),"%Y/%m/%d")){
   otc <- fread(url,header = T,skip = 1,stringsAsFactors = F,data.table = F,encoding = 'UTF-8',
                select = c(1,3:7,9),col.names = c('code','close','change','open','high','low','volume'))
 
-  for (i in 2:7){
-    otc[,i] <- gsub(',','',otc[,i]) %>%
-      gsub('\xb0\xa3\xc5v ','',.) %>%
+  otc[,2:7] <- lapply(2:7, function(i){
+    grep('[0-9]',otc[,i],value = T) %>%
+      gsub(',','',.) %>%
       as.numeric()
-  }
+  }) %>% do.call(cbind,.)
+
   otc <- otc[,c('code','volume','open','high','low','close','change')]
   return(otc)
 }
