@@ -83,36 +83,39 @@ long_date <- function(n=6){
 
 }
 
-fund=function(date=format(Sys.time(),"%Y/%m/%d")){
-  date=paste0(as.numeric(substr(date,1,4))-1911,substr(date,5,10))
-  url = "http://www.twse.com.tw/ch/trading/fund/T86/T86.php"
-  res=httr::POST(url,
-                 httr::add_headers(
-                   `Content-Type`= "application/x-www-form-urlencoded"
-                 ),
-                 body = paste0('download=html&qdate=',date,'&select2=ALLBUT0999&sorting=by_issue'))
+fund=function(date=format(Sys.time(),"%Y%m%d")){
 
-  tables=httr::content(res,encoding = 'utf8') %>%
-    rvest::html_table(fill = T)
-  tables=tables[[2]]
-  tables=tables[,c(1,5,8)]
+  url <- paste0("http://www.twse.com.tw/fund/T86?response=csv&date=",date,"&selectType=ALLBUT0999")
+  tables <- read.csv(url,header = F,fileEncoding = 'big5')
+
+  tables=tables[-(1:2),c(1,5,8)]
   colnames(tables)=c('code','diff_f','diff_t')
-  tables=mutate(tables,diff_f=as.numeric(gsub(',','',diff_f))) %>%
-    mutate(diff_t=as.numeric(gsub(',','',diff_t)))
+  tables$diff_f=gsub(',','',tables$diff_f) %>%
+    gsub('=','',.) %>% as.numeric()
+  tables$diff_t=gsub(',','',tables$diff_t) %>%
+    gsub('=','',.) %>% as.numeric()
+  tables$code=gsub('=','',tables$code)
+  tables=filter(tables, !is.na(diff_t))
+
   return(tables)
 }
 
 MI_INDEX <- function(date=format(Sys.time(),"%Y%m%d")){
-  url = 'http://www.twse.com.tw/en/trading/exchange/MI_INDEX/MI_INDEX.php'
-  res=httr::POST(url,
-                 httr::add_headers(
-                   `Content-Type`= "application/x-www-form-urlencoded"
-                 ),
-                 body = paste0("download=&qdate=",date,"&selectType=ALLBUT0999"))
+#   url = 'http://www.twse.com.tw/en/trading/exchange/MI_INDEX/MI_INDEX.php'
+#   res=httr::POST(url,
+#                  httr::add_headers(
+#                    `Content-Type`= "application/x-www-form-urlencoded"
+#                  ),
+#                  body = paste0("download=&qdate=",date,"&selectType=ALLBUT0999"))
+
+  url=paste0('http://www.twse.com.tw/en/exchangeReport/MI_INDEX?response=html&date=',
+             date,'&type=ALLBUT0999')
+  res=GET(url)
+
   tables=httr::content(res,encoding = 'utf8')
 
   tables <- htmlParse(tables) %>%
-    readHTMLTable(stringsAsFactors = F, which = 2) %>%
+    readHTMLTable(stringsAsFactors = F, which = 5) %>%
     .[,c(1:2,5:10)]
 
   colnames(tables) <- c("code","volume",'open',
@@ -123,7 +126,7 @@ MI_INDEX <- function(date=format(Sys.time(),"%Y%m%d")){
     tables[,i] <- as.numeric(gsub(',','',tables[,i]))
   }
   tables$Dir=factor(tables$Dir) %>% as.numeric()
-  tables$change[tables$Dir==3] <-  -1*tables$change[tables$Dir==3]
+  tables$change[tables$Dir==2] <-  -1*tables$change[tables$Dir==2]
 
   tables <- tables[,c(1:6,8)]
   return(tables)
