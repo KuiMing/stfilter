@@ -57,9 +57,9 @@ som <- function(x) {
   as.Date(format(x, "%Y-%m-1"))
 }
 
-long_date <- function(n=6){
-  date <- c(som(som(Sys.Date())-1),
-            som(Sys.Date()))
+long_date <- function(n=6,Date=Sys.Date()){
+  date <- c(som(som(Date)-1),
+            som(Date))
   year <- c(format(date[1],"%Y"),
             format(date[2],"%Y"))
   mon <- c(format(date[1],"%m"),
@@ -159,11 +159,16 @@ otc_daily <- function(date=format(Sys.time(),"%Y/%m/%d")){
   otc <- fread(url,header = T,skip = 1,stringsAsFactors = F,data.table = F,encoding = 'UTF-8',
                select = c(1,3:7,9),col.names = c('code','close','change','open','high','low','volume'))
 
-  otc[,2:7] <- lapply(2:7, function(i){
+  otc=otc[grep('[0-9]',otc[,2]),]
+  otc=otc[grep('[0-9]',otc[,3]),]
+  otc[,c(2,4:7)] <- lapply(c(2,4:7), function(i){
     grep('[0-9]',otc[,i],value = T) %>%
       gsub(',','',.) %>%
       as.numeric()
   }) %>% do.call(cbind,.)
+
+
+
 
   otc <- otc[,c('code','volume','open','high','low','close','change')]
   return(otc)
@@ -679,6 +684,7 @@ k20 <- function(stock){
                TWSE_csv(x,year[2],mons[2]),
                TWSE_csv(x,year[3],mons[3]))
   }
+  y=y[!is.na(Cl(y))]
 
   k=as.numeric(tail(Cl(y),1)-tail(SMA(Cl(y),20),1))>0
   return(k)
@@ -706,9 +712,9 @@ wantgoo_foreign <- function(stock){
   return(foreign)
 }
 
-get_price <- function(stock){
+get_price <- function(stock,date=long_date(1)){
   x=stock
-  date=long_date(1) %>% as.Date()
+  date=as.Date(date)
   ym=c(som(som(som(som(date)-1)-1)-1),
        som(som(som(date)-1)-1),
        som(som(date)-1),
@@ -729,7 +735,7 @@ get_price <- function(stock){
     y <- rbind(TWSE_csv(x,year[1],mons[1]),
                TWSE_csv(x,year[2],mons[2]),
                TWSE_csv(x,year[3],mons[3]),
-               TWSE_csv(x,year[3],mons[4]))
+               TWSE_csv(x,year[4],mons[4]))
   }
   y=as.xts(y)
   return(y)
