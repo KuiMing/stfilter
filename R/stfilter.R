@@ -167,7 +167,33 @@ otc_daily <- function(date=format(Sys.time(),"%Y/%m/%d")){
       as.numeric()
   }) %>% do.call(cbind,.)
 
+  get_CCI=function(stock,today){
+    x=stock
+    day=as.Date(today)
+    ym=c(som(som(som(day))-1)-1,
+         som(som(day)-1),
+         som(day))
+    year <- sapply(ym, function(x){
+      format(x,"%Y")
+    })
+    mons <- sapply(ym, function(x){
+      format(x,"%m")
+    })
+    test=try(TWSE_csv(x,year[3],mons[3]),T)
+    if (class(test)=="try-error"){
+      y <- rbind(OTC_csv(x,year[1],mons[1]),
+                 OTC_csv(x,year[2],mons[2]),
+                 OTC_csv(x,year[3],mons[3]))
+    }else {
+      y <- rbind(TWSE_csv(x,year[1],mons[1]),
+                 TWSE_csv(x,year[2],mons[2]),
+                 TWSE_csv(x,year[3],mons[3]))
+    }
+    y=y[!is.na(Cl(y))] %>% as.xts()
 
+    return(cbind(CCI(HLC(y),n=14),SMA(Cl(y),20),Cl(y)))
+
+  }
 
 
   otc <- otc[,c('code','volume','open','high','low','close','change')]
@@ -751,3 +777,33 @@ get_name <- function(stock){
     gsub('[0-9]','',.)
   return(titlename)
 }
+
+
+get_CCI=function(stock,today){
+  x=stock
+  day=as.Date(today)
+  ym=c(som(som(som(day))-1)-1,
+       som(som(day)-1),
+       som(day))
+  year <- sapply(ym, function(x){
+    format(x,"%Y")
+  })
+  mons <- sapply(ym, function(x){
+    format(x,"%m")
+  })
+  test=try(TWSE_csv(x,year[3],mons[3]),T)
+  if (class(test)=="try-error"){
+    y <- rbind(OTC_csv(x,year[1],mons[1]),
+               OTC_csv(x,year[2],mons[2]),
+               OTC_csv(x,year[3],mons[3]))
+  }else {
+    y <- rbind(TWSE_csv(x,year[1],mons[1]),
+               TWSE_csv(x,year[2],mons[2]),
+               TWSE_csv(x,year[3],mons[3]))
+  }
+  y=y[!is.na(Cl(y))] %>% as.xts()
+
+  return(cbind(CCI(HLC(y),n=14),SMA(Cl(y),20),Cl(y)))
+
+}
+
